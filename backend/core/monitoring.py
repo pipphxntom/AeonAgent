@@ -1,10 +1,14 @@
 from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry
-from opentelemetry import trace
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 import logging
+
+try:  # Optional OpenTelemetry imports
+    from opentelemetry import trace  # type: ignore
+    from opentelemetry.sdk.trace import TracerProvider  # type: ignore
+    OTEL_AVAILABLE = True
+except ImportError:  # pragma: no cover - best effort fallback
+    trace = None  # type: ignore
+    TracerProvider = None  # type: ignore
+    OTEL_AVAILABLE = False
 
 from .config import settings
 
@@ -16,13 +20,11 @@ ACTIVE_AGENTS = Gauge('active_agents', 'Number of active agent instances')
 TRIAL_CONVERSIONS = Counter('trial_conversions_total', 'Trial to paid conversions')
 
 def setup_monitoring():
-    """Set up monitoring and tracing."""
-    if settings.ENVIRONMENT == "production":
-        # Set up OpenTelemetry tracing
-        trace.set_tracer_provider(TracerProvider())
-        tracer = trace.get_tracer(__name__)
-        
-        # Set up Prometheus metrics
-        logging.info("Monitoring initialized")
+    """Set up monitoring and tracing (graceful if optional deps missing)."""
+    if settings.ENVIRONMENT == "production" and OTEL_AVAILABLE:
+        trace.set_tracer_provider(TracerProvider())  # type: ignore
+        logging.info("OpenTelemetry tracing initialized")
+    elif settings.ENVIRONMENT == "production" and not OTEL_AVAILABLE:
+        logging.warning("OpenTelemetry not installed; skipping tracing. Install opentelemetry-sdk to enable.")
     else:
         logging.info("Monitoring setup skipped in development")

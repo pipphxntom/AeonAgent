@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import MetaData
 import logging
+from typing import Optional
 
 from .config import settings
 
@@ -19,36 +20,38 @@ metadata = MetaData(
 # SQLAlchemy base
 Base = declarative_base(metadata=metadata)
 
-# Database engine
-database_url = settings.database_url if hasattr(settings, 'database_url') else settings.DATABASE_URL
-engine = create_async_engine(
-    database_url,
-    echo=settings.ENVIRONMENT == "development",
-    future=True,
-    pool_pre_ping=True,
-    pool_recycle=300,
-)
-
-# Session factory
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-    autocommit=False,
-)
+engine = None  # type: ignore
+AsyncSessionLocal: Optional[async_sessionmaker[AsyncSession]] = None
 
 
 async def init_db():
     """Initialize database."""
     try:
-        # Import all models to ensure they are registered
-        from models import *  # noqa
-        
-        # Create tables (in production, use Alembic migrations)
-        if settings.ENVIRONMENT == "development":
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+        global engine, AsyncSessionLocal
+
+        if engine is None:
+            db_url = settings.database_url
+            engine = create_async_engine(
+                db_url,
+                echo=settings.ENVIRONMENT == "development",
+                future=True,
+                pool_pre_ping=True,
+                pool_recycle=300,
+            )
+            AsyncSessionLocal = async_sessionmaker(
+                engine,
+                class_=AsyncSession,
+                expire_on_commit=False,
+                autoflush=False,
+                autocommit=False,
+            )
+
+            # Import models lazily to avoid circular imports (models import Base from this module)
+            import models  # noqa: F401
+
+            if settings.ENVIRONMENT == "development":
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
         
         logging.info("Database initialized successfully")
     except Exception as e:
@@ -58,6 +61,8 @@ async def init_db():
 
 async def get_db() -> AsyncSession:
     """Get database session."""
+    if AsyncSessionLocal is None:
+        raise RuntimeError("Database not initialized. Call init_db() during startup before using get_db().")
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -66,3 +71,9 @@ async def get_db() -> AsyncSession:
             raise
         finally:
             await session.close()
+
+
+def get_engine():
+    if engine is None:
+        raise RuntimeError("Engine not initialized. Call init_db() first.")
+    return engine

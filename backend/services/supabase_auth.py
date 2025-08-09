@@ -150,5 +150,15 @@ class SupabaseAuth:
             return False
 
 
-# Global instance
-supabase_auth = SupabaseAuth()
+# Global instance (lazy / tolerant init)
+try:
+    supabase_auth = SupabaseAuth()
+except Exception as e:  # pragma: no cover
+    logger.error(f"Failed to initialize SupabaseAuth at import time: {e}. Will attempt re-init on first use.")
+    supabase_auth = None  # type: ignore
+
+def get_supabase_auth() -> SupabaseAuth:
+    global supabase_auth
+    if supabase_auth is None:
+        supabase_auth = SupabaseAuth()
+    return supabase_auth

@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
 from pathlib import Path
+from urllib.parse import quote_plus
 
 
 class Settings(BaseSettings):
@@ -22,6 +23,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_KEY: str
+    SUPABASE_DB_PASSWORD: Optional[str] = None
     DATABASE_URL: Optional[str] = None  # Keep for backward compatibility
     DATABASE_TEST_URL: Optional[str] = None
     
@@ -35,6 +37,7 @@ class Settings(BaseSettings):
     # AI Models
     OPENAI_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None  # Fallback to GEMINI_API_KEY
     
     # Supabase Authentication
     SUPABASE_JWT_SECRET: str
@@ -80,11 +83,39 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        """Get database URL - prioritize Supabase URL if available."""
-        if self.SUPABASE_URL:
-            # Convert Supabase URL to PostgreSQL connection string
-            return self.SUPABASE_URL.replace('https://', 'postgresql://postgres:[YOUR-PASSWORD]@').replace('.supabase.co', '.supabase.co:5432') + '/postgres'
-        return self.DATABASE_URL
+        """Return an async SQLAlchemy database URL or raise with setup instructions.
+
+        Resolution order:
+        1. Construct from Supabase (SUPABASE_URL + SUPABASE_DB_PASSWORD) using asyncpg
+        2. Use provided DATABASE_URL (upgrade to asyncpg driver if plain postgresql://)
+        3. Raise RuntimeError with guidance
+        """
+        # Preferred: derive from Supabase settings
+        if self.SUPABASE_URL and self.SUPABASE_DB_PASSWORD:
+            host = self.SUPABASE_URL.replace("https://", "").rstrip("/")
+            if not host.endswith(".supabase.co"):
+                host = f"{host}.supabase.co"
+            password = quote_plus(self.SUPABASE_DB_PASSWORD)
+            return f"postgresql+asyncpg://postgres:{password}@{host}:5432/postgres"
+
+        # Fallback: explicit DATABASE_URL
+        if self.DATABASE_URL:
+            url = self.DATABASE_URL
+            if url.startswith("postgresql://") and "+asyncpg" not in url:
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            return url
+
+        # Nothing configured -> raise with instructions
+        raise RuntimeError(
+            "Database configuration missing. Set either (1) SUPABASE_URL and SUPABASE_DB_PASSWORD or (2) DATABASE_URL in backend/.env. "
+            "Example Supabase vars: SUPABASE_URL=https://YOUR_REF.supabase.co SUPABASE_DB_PASSWORD=your_db_pass. "
+            "Example direct URL: DATABASE_URL=postgresql://user:pass@host:5432/dbname"
+        )
+
+    def model_post_init(self, __context):  # pydantic v2 hook
+        # Fallback: reuse GEMINI key for Google if GOOGLE_API_KEY unset
+        if not self.GOOGLE_API_KEY and self.GEMINI_API_KEY:
+            object.__setattr__(self, "GOOGLE_API_KEY", self.GEMINI_API_KEY)
 
 # Create global settings instance
 settings = Settings()

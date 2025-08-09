@@ -48,31 +48,31 @@ class Document(Base):
 
 class ClauseChunk(Base):
     """Text chunk from a document with embeddings."""
-    
+
     __tablename__ = "clause_chunks"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    
+
     # Content
     text = Column(Text, nullable=False)
     chunk_index = Column(Integer, nullable=False)  # Order within document
-    
+
     # Embeddings
     embedding_id = Column(String(255), unique=True, index=True)  # Qdrant point ID
     embedding_model = Column(String(100), default="text-embedding-ada-002")
-    
-    # Metadata
-    metadata = Column(JSON, default=dict)  # Page number, section, etc.
-    
+
+    # Metadata (renamed from 'metadata' to avoid SQLAlchemy reserved name clash)
+    chunk_metadata = Column(JSON, default=dict)  # Page number, section, etc.
+
     # Relationships
     document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
-    
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships
     document = relationship("Document", back_populates="chunks")
-    
+
     def __repr__(self):
         return f"<ClauseChunk(id={self.id}, document_id={self.document_id}, chunk_index={self.chunk_index})>"
