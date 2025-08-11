@@ -1,0 +1,76 @@
+services:
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: aeonagent-redis
+    network_mode: host
+    volumes:
+      - redis_data:/data
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: aeonagent-qdrant
+    network_mode: host
+    volumes:
+      - qdrant_data:/qdrant/storage
+      
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: aeonagent-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password123
+      - POSTGRES_DB=postgres
+    network_mode: host
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aeonagent-backend
+    environment:
+      - SUPABASE_URL=https://wezavcxzvpdsdbvjtknw.supabase.co
+      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlemF2Y3h6dnBkc2Ridmp0a253Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI5NjA2NDksImV4cCI6MjA2ODUzNjY0OX0.A_dpxrgoCp3Q1Rz3cIW3GRycrxIsuHaT1ryHE-omI3U
+      - SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlemF2Y3h6dnBkc2Ridmp0a253Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1Mjk2MDY0OSwiZXhwIjoyMDY4NTM2NjQ5fQ.Kr-tGA1VxKnLbhBYWL3n4LtbJGHXTe2uU0iaOJARymM
+      - SUPABASE_JWT_SECRET=JNtB3AuS7dCyOQn+ARkvzE2oHzlULggX+1N+PjUEnJO0Z+kHik8UUvOmg9M8jsGwYaxjFLRbD9skbIrpqdx0fQ==
+      - SUPABASE_DB_PASSWORD=password123
+      - DATABASE_URL=postgresql://postgres:password123@localhost:5432/postgres
+      - REDIS_URL=redis://localhost:6379/0
+      - QDRANT_URL=http://localhost:6333
+      - SECRET_KEY=aeonagent@@1001
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - OPENAI_API_KEY=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
+      - ENVIRONMENT=development
+      - ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    network_mode: host
+    depends_on:
+      - redis
+      - qdrant
+      - db
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aeonagent-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    network_mode: host
+    depends_on:
+      - backend
+
+volumes:
+  redis_data:
+  qdrant_data:
+  postgres_data:
