@@ -74,3 +74,5 @@ volumes:
   redis_data:
   qdrant_data:
   postgres_data:
+  
+# Network configuration comment - added for Git tracking
