@@ -254,3 +254,7 @@ Future badge steps:
 - YOLO: Open a PR and merge it yourself without review (e.g., docs tweak).
 - Heart On Your Sleeve: React to any issue, PR, or comment with an emoji.
 
+Branch `yolo-badge` includes this minor note for YOLO achievement test.
+
+> YOLO test: harmless README line added.
+
