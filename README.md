@@ -243,3 +243,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 Built with ❤️ by the AeonAgent team
+
+---
+
+### 🔖 Badges & Activity
+
+This commit intentionally includes a co-author line to help unlock the GitHub "Pair Extraordinaire" badge.
+
+Future badge steps:
+- YOLO: Open a PR and merge it yourself without review (e.g., docs tweak).
+- Heart On Your Sleeve: React to any issue, PR, or comment with an emoji.
+
